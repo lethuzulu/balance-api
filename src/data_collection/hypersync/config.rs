@@ -76,6 +76,36 @@ impl Default for StreamConfig {
 }
 
 
+/// Load Hyoersync configuration from environment variables
+pub fn load_config() -> Result<ClientConfig> {
+    // Expand to laod from env file
+    let mut config = ClientConfig::default();
+
+    if let Ok(endpoint) = std::env::var("HYPERSYNC_ENDPOINT") {
+        config.url = endpoint;
+    }
+    // Additional environment variable parsing could be added here
+    Ok(config)
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #[cfg(test)]
 mod tests {
