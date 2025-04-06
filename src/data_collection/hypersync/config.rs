@@ -1,22 +1,21 @@
 // Configuration for Hypersync
 
+use anyhow::Result;
 use hypersync_client::ClientConfig as BaseClientConfig;
 use hypersync_client::StreamConfig as BaseStreamConfig;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
 use url::Url;
-use anyhow::Result;
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
     pub url: String,
-    pub bearer_token:Option<String>,
+    pub bearer_token: Option<String>,
     pub http_timeout_ms: u64,
     pub max_retries: usize,
     pub retry_backoff_ms: u64,
     pub retry_base_ms: u64,
-    pub retry_ceiling_ms: u64,   
+    pub retry_ceiling_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,9 +54,8 @@ impl ClientConfig {
             max_num_retries: Some(self.max_retries),
             retry_backoff_ms: Some(self.retry_backoff_ms),
             retry_base_ms: Some(self.retry_backoff_ms),
-            retry_ceiling_ms: Some(self.retry_ceiling_ms)
+            retry_ceiling_ms: Some(self.retry_ceiling_ms),
         })
-
     }
 }
 
@@ -75,7 +73,6 @@ impl Default for StreamConfig {
     }
 }
 
-
 /// Load Hyoersync configuration from environment variables
 pub fn load_config() -> Result<ClientConfig> {
     // Expand to laod from env file
@@ -86,31 +83,12 @@ pub fn load_config() -> Result<ClientConfig> {
     }
     // Additional environment variable parsing could be added here
     Ok(config)
-
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_default_client_config() {
         let config = ClientConfig::default();
@@ -122,11 +100,14 @@ mod tests {
         assert_eq!(config.retry_base_ms, 200);
         assert_eq!(config.retry_ceiling_ms, 5_000);
     }
-    
+
     #[test]
     fn test_to_base_client_config() {
         let config = ClientConfig::default();
         let base_config = config.to_base_client_config().unwrap();
-        assert_eq!(base_config.url.unwrap().as_str(), "https://eth.hypersync.xyz/");
+        assert_eq!(
+            base_config.url.unwrap().as_str(),
+            "https://eth.hypersync.xyz/"
+        );
     }
 }

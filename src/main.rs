@@ -4,11 +4,10 @@ mod query;
 mod storage;
 
 use anyhow::Result;
+use data_collection::hypersync::client::HypersyncClient;
+use data_collection::hypersync::config::load_config;
 use dotenv::dotenv;
 use log::info;
-use data_collection::hypersync::config::load_config;
-use data_collection::hypersync::client::HyperSyncClient;
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -20,14 +19,13 @@ async fn main() -> Result<()> {
 
     info!("Starting Ethereum Balance API - Phase 1");
 
-   // Load Hypersync configuration
-   let hypersync_config = load_config()?;
-   info!("Loaded Hypersync configuration"); 
+    // Load Hypersync configuration
+    let hypersync_config = load_config()?;
+    info!("Loaded Hypersync configuration");
 
+    // Initialize Hypersynct client
+    let client = HypersyncClient::new(hypersync_config)?;
+    info!("Initialized Hypersync client");
 
-   // Initialize Hypersynct client
-   let client = HyperSyncClient::new(hypersync_config)?;
-   info!("Initialized Hypersync client");
-
-Ok(())
+    Ok(())
 }
