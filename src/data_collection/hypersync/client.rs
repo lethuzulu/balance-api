@@ -84,8 +84,8 @@ impl HypersyncClient {
                 from: vec![address.clone()],
                 ..Default::default()
             }],
-            field_selection : FieldSelection {
-                transaction : {
+            field_selection: FieldSelection {
+                transaction: {
                     let mut fields = BTreeSet::new();
                     fields.insert("hash".to_string());
                     fields.insert("from".to_string());
@@ -111,12 +111,12 @@ impl HypersyncClient {
         todo!();
     }
     /// Health check method
-    pub async fn health_check(&self) -> Result<u64>{
-        self.client.get_height().await.context("Failed to perform health check")
+    pub async fn health_check(&self) -> Result<u64> {
+        self.client
+            .get_height()
+            .await
+            .context("Failed to perform health check")
     }
-
-
-
 }
 
 #[cfg(test)]
@@ -212,7 +212,9 @@ mod tests {
             Ok(_) => {
                 // If we got a successful response, verify it has the expected structure
                 // In a real test with a mock, we would assert specific values
-                println!("Successfully received response from Hypersync API for transactions from address");
+                println!(
+                    "Successfully received response from Hypersync API for transactions from address"
+                );
             }
             Err(e) => {
                 // It's ok if we get a network error, but log it for debugging
