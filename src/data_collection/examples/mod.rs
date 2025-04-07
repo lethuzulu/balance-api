@@ -1,0 +1,3 @@
+pub mod transaction_collector_example;
+
+pub use transaction_collector_example::run_transaction_collector_example; 
