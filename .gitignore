@@ -19,3 +19,4 @@ target/
 .env
 internal-docs/
 old_documents/
+balance-api.code-workspace

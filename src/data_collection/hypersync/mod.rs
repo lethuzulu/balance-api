@@ -4,4 +4,4 @@ pub mod transaction_collector;
 
 pub use client::HypersyncClient;
 pub use config::{ClientConfig, StreamConfig, load_config};
-pub use transaction_collector::{TransactionCollector, TransactionEvent};
+// pub use transaction_collector::{TransactionCollector, TransactionEvent};

@@ -1,15 +1,15 @@
 // Hypersync client wrapper
 
 use anyhow::{Context, Result};
-use async_graphql::parser::types::Field;
+
 use hypersync_client::Client as BaseClient;
 use hypersync_client::QueryResponse;
-use hypersync_client::format::{Address, Data, FixedSizeData, Hex};
+use hypersync_client::format::{Address, FixedSizeData, Hex};
+use hypersync_client::net_types::FieldSelection;
 use hypersync_client::net_types::Query;
 use hypersync_client::net_types::TransactionSelection;
-use hypersync_client::net_types::{FieldSelection, TraceSelection};
 use log::info;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use super::config::ClientConfig;
 
@@ -116,6 +116,11 @@ impl HypersyncClient {
             .get_height()
             .await
             .context("Failed to perform health check")
+    }
+
+    /// Handle pagination from Hypersync responses
+    fn handle_pagination() -> Result<u64> {
+        todo!("Implement pagination");
     }
 }
 

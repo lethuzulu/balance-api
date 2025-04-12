@@ -1,8 +1,10 @@
+mod common;
 mod data_collection;
 mod processing;
 mod query;
 mod storage;
 
+use crate::processing::service::ProcessingService;
 use anyhow::Result;
 use data_collection::hypersync::client::HypersyncClient;
 use data_collection::hypersync::config::load_config;
@@ -18,6 +20,10 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     info!("Starting Ethereum Balance API - Phase 1");
+
+    // Create and start the processing service
+    let processing_service = ProcessingService::new()?;
+    processing_service.start().await?;
 
     // Load Hypersync configuration
     let hypersync_config = load_config()?;

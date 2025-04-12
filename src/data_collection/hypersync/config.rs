@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use hypersync_client::ClientConfig as BaseClientConfig;
-use hypersync_client::StreamConfig as BaseStreamConfig;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
 use url::Url;

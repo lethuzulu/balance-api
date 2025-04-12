@@ -1,9 +1,10 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::client::HypersyncClient;
+use crate::common::types::TransactionEvent;
 use anyhow::{Context, Result};
 use hypersync_client::{
-    QueryResponse, StreamConfig,
+    QueryResponse,
     format::{FixedSizeData, Hex, TransactionStatus},
 };
 use log::{error, info};
@@ -12,7 +13,6 @@ use rdkafka::{
     producer::{FutureProducer, FutureRecord},
     util::Timeout,
 };
-use serde::{Deserialize, Serialize};
 
 /// Transaction collector responsible for collecting transactions
 /// and publishing them to Kafka
@@ -201,19 +201,6 @@ impl TransactionCollector {
     }
 }
 
-// Kafka message schema
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TransactionEvent {
-    pub chain_id: u64,
-    pub transaction_hash: String,
-    pub block_number: u64,
-    pub from_address: String,
-    pub to_address: String,
-    pub value: String, // Using String for BigDecimal compatibility
-    pub timestamp: u64,
-    pub is_success: bool,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,22 +211,22 @@ mod tests {
     mock! {
         pub HypersyncClient {
             fn query_transactions_to_address(
-                &self, 
+                &self,
                 address: FixedSizeData<20>,
                 from_block: u64,
                 to_block: Option<u64>,
             ) -> Result<MockQueryResponse>;
-            
+
             fn query_transactions_from_address(
                 &self,
                 address: FixedSizeData<20>,
                 from_block: u64,
                 to_block: Option<u64>,
             ) -> Result<MockQueryResponse>;
-            
+
             fn health_check(&self) -> Result<u64>;
         }
-        
+
         impl Clone for HypersyncClient {
             fn clone(&self) -> Self;
         }
@@ -257,20 +244,31 @@ mod tests {
         }
 
         fn with_result(result: Result<(), String>) -> Self {
-            Self { send_result: Some(result) }
+            Self {
+                send_result: Some(result),
+            }
         }
     }
 
     // Helper function to create a test transaction event
-    fn create_test_transaction_event(hash: &str, block_number: u64) -> hypersync_client::format::Transaction {
-        use hypersync_client::format::{FixedSizeData, Transaction, Quantity};
-        
+    fn create_test_transaction_event(
+        hash: &str,
+        block_number: u64,
+    ) -> hypersync_client::format::Transaction {
+        use hypersync_client::format::{FixedSizeData, Quantity, Transaction};
+
         // For mocking purposes, we'll create a simple transaction with valid hash and values
         Transaction {
             hash: FixedSizeData::<32>::decode_hex(hash).unwrap(),
-            block_number: block_number.into(),  // Convert u64 to UInt
-            from: Some(FixedSizeData::<20>::decode_hex("0x1234567890123456789012345678901234567890").unwrap()),
-            to: Some(FixedSizeData::<20>::decode_hex("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd").unwrap()),
+            block_number: block_number.into(), // Convert u64 to UInt
+            from: Some(
+                FixedSizeData::<20>::decode_hex("0x1234567890123456789012345678901234567890")
+                    .unwrap(),
+            ),
+            to: Some(
+                FixedSizeData::<20>::decode_hex("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd")
+                    .unwrap(),
+            ),
             value: Quantity::from(vec![1]), // Use 1 instead of 0 to avoid assertion error
             // Transaction status is handled differently in the actual format
             // We'll use the default for other fields
@@ -287,9 +285,11 @@ mod tests {
         total_execution_time: u64,
         rollback_guard: Option<u64>,
     }
-    
+
     // Helper function to create a test query response
-    fn create_test_query_response(txs: Vec<hypersync_client::format::Transaction>) -> MockQueryResponse {
+    fn create_test_query_response(
+        txs: Vec<hypersync_client::format::Transaction>,
+    ) -> MockQueryResponse {
         MockQueryResponse {
             transactions: vec![txs],
             archive_height: Some(0),
@@ -298,7 +298,7 @@ mod tests {
             rollback_guard: None,
         }
     }
-    
+
     // Create a test-specific version of TransactionCollector that works with the mock
     struct TestTransactionCollector {
         client: MockHypersyncClient,
@@ -310,7 +310,11 @@ mod tests {
     // Implement methods from TransactionCollector for TestTransactionCollector
     impl TestTransactionCollector {
         // Just implement what we need for the tests
-        fn get_highest_block_number(&self, to_txs: &MockQueryResponse, from_txs: &MockQueryResponse) -> u64 {
+        fn get_highest_block_number(
+            &self,
+            to_txs: &MockQueryResponse,
+            from_txs: &MockQueryResponse,
+        ) -> u64 {
             let to_max = to_txs
                 .transactions
                 .iter()
@@ -329,13 +333,13 @@ mod tests {
 
             std::cmp::max(to_max, from_max)
         }
-        
+
         async fn health_check(&self) -> Result<()> {
             // Directly call health_check on the mock
             self.client.health_check()?;
             Ok(())
         }
-        
+
         async fn collect_historical_transactions(
             &self,
             address: &str,
@@ -347,14 +351,16 @@ mod tests {
                 FixedSizeData::<20>::decode_hex(address).context("Failed to decode ETH address")?;
 
             // Query transactions TO the address directly using the mock
-            let to_txs = self
-                .client
-                .query_transactions_to_address(eth_address.clone(), from_block, to_block)?;
+            let to_txs = self.client.query_transactions_to_address(
+                eth_address.clone(),
+                from_block,
+                to_block,
+            )?;
 
             // Query transactions FROM the address directly using the mock
-            let from_txs = self
-                .client
-                .query_transactions_from_address(eth_address, from_block, to_block)?;
+            let from_txs =
+                self.client
+                    .query_transactions_from_address(eth_address, from_block, to_block)?;
 
             // Return the highest block number processed for pagination
             Ok(self.get_highest_block_number(&to_txs, &from_txs))
@@ -365,20 +371,19 @@ mod tests {
     fn setup_collector_with_mock() -> (TestTransactionCollector, MockHypersyncClient) {
         // Create mock client
         let mut mock_client = MockHypersyncClient::new();
-        
+
         // Set up clone expectation that all tests need
-        mock_client.expect_clone()
+        mock_client
+            .expect_clone()
             .times(1..)
-            .returning(|| {
-                MockHypersyncClient::new()
-            });
-        
+            .returning(|| MockHypersyncClient::new());
+
         // Create mock producer via rdkafka ClientConfig
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", "mock://mock")
             .create()
             .unwrap();
-        
+
         // Create test collector with mocks
         let collector = TestTransactionCollector {
             client: mock_client.clone(),
@@ -386,29 +391,38 @@ mod tests {
             topic: "test-topic".to_string(),
             chain_id: 1,
         };
-        
+
         (collector, mock_client)
     }
 
     #[tokio::test]
     async fn test_get_highest_block_number() {
         // Create test data
-        let tx1 = create_test_transaction_event("0x1111111111111111111111111111111111111111111111111111111111111111", 100);
-        let tx2 = create_test_transaction_event("0x2222222222222222222222222222222222222222222222222222222222222222", 200);
-        let tx3 = create_test_transaction_event("0x3333333333333333333333333333333333333333333333333333333333333333", 150);
-        
+        let tx1 = create_test_transaction_event(
+            "0x1111111111111111111111111111111111111111111111111111111111111111",
+            100,
+        );
+        let tx2 = create_test_transaction_event(
+            "0x2222222222222222222222222222222222222222222222222222222222222222",
+            200,
+        );
+        let tx3 = create_test_transaction_event(
+            "0x3333333333333333333333333333333333333333333333333333333333333333",
+            150,
+        );
+
         let to_txs = create_test_query_response(vec![tx1]);
         let from_txs = create_test_query_response(vec![tx2, tx3]);
-        
+
         // Create mock client directly
         let mock_client = MockHypersyncClient::new();
-        
+
         // Create producer via rdkafka ClientConfig
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", "mock://mock")
             .create()
             .unwrap();
-        
+
         // Create test collector with mock
         let collector = TestTransactionCollector {
             client: mock_client,
@@ -416,10 +430,10 @@ mod tests {
             topic: "test-topic".to_string(),
             chain_id: 1,
         };
-        
+
         // Test the function
         let highest_block = collector.get_highest_block_number(&to_txs, &from_txs);
-        
+
         // Verify result
         assert_eq!(highest_block, 200);
     }
@@ -428,16 +442,16 @@ mod tests {
     async fn test_empty_get_highest_block_number() {
         // Create empty responses
         let empty_response = create_test_query_response(vec![]);
-        
+
         // Create mock client directly
         let mock_client = MockHypersyncClient::new();
-        
+
         // Create producer via rdkafka ClientConfig
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", "mock://mock")
             .create()
             .unwrap();
-        
+
         // Create test collector with mock
         let collector = TestTransactionCollector {
             client: mock_client,
@@ -445,10 +459,10 @@ mod tests {
             topic: "test-topic".to_string(),
             chain_id: 1,
         };
-        
+
         // Test with empty responses
         let highest_block = collector.get_highest_block_number(&empty_response, &empty_response);
-        
+
         // Should return 0 for empty responses
         assert_eq!(highest_block, 0);
     }
@@ -459,35 +473,43 @@ mod tests {
         let address = "0x1234567890123456789012345678901234567890";
         let from_block = 100;
         let to_block = Some(200);
-        
-        let tx1 = create_test_transaction_event("0x1111111111111111111111111111111111111111111111111111111111111111", 150);
-        let tx2 = create_test_transaction_event("0x2222222222222222222222222222222222222222222222222222222222222222", 180);
-        
+
+        let tx1 = create_test_transaction_event(
+            "0x1111111111111111111111111111111111111111111111111111111111111111",
+            150,
+        );
+        let tx2 = create_test_transaction_event(
+            "0x2222222222222222222222222222222222222222222222222222222222222222",
+            180,
+        );
+
         let to_txs_response = create_test_query_response(vec![tx1]);
         let from_txs_response = create_test_query_response(vec![tx2]);
-        
+
         // Create mock client directly
         let mut mock_client = MockHypersyncClient::new();
-        
+
         // Configure mock expectations
         let eth_address = FixedSizeData::<20>::decode_hex(address).unwrap();
-        
-        mock_client.expect_query_transactions_to_address()
+
+        mock_client
+            .expect_query_transactions_to_address()
             .with(eq(eth_address.clone()), eq(from_block), eq(to_block))
             .times(1)
             .returning(move |_, _, _| Ok(to_txs_response.clone()));
-            
-        mock_client.expect_query_transactions_from_address()
+
+        mock_client
+            .expect_query_transactions_from_address()
             .with(eq(eth_address.clone()), eq(from_block), eq(to_block))
             .times(1)
             .returning(move |_, _, _| Ok(from_txs_response.clone()));
-        
+
         // Create producer via rdkafka ClientConfig
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", "mock://mock")
             .create()
             .unwrap();
-        
+
         // Create test collector with mock
         let collector = TestTransactionCollector {
             client: mock_client,
@@ -495,10 +517,12 @@ mod tests {
             topic: "test-topic".to_string(),
             chain_id: 1,
         };
-        
+
         // Call the method under test
-        let result = collector.collect_historical_transactions(address, from_block, to_block).await;
-        
+        let result = collector
+            .collect_historical_transactions(address, from_block, to_block)
+            .await;
+
         // Verify results
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 180); // Highest block number
@@ -510,25 +534,26 @@ mod tests {
         let address = "0x1234567890123456789012345678901234567890";
         let from_block = 100;
         let to_block = Some(200);
-        
+
         // Create mock client directly
         let mut mock_client = MockHypersyncClient::new();
-        
+
         // Configure mock expectations
         let eth_address = FixedSizeData::<20>::decode_hex(address).unwrap();
-        
+
         // Configure mock to return error
-        mock_client.expect_query_transactions_to_address()
+        mock_client
+            .expect_query_transactions_to_address()
             .with(eq(eth_address.clone()), eq(from_block), eq(to_block))
             .times(1)
             .returning(|_, _, _| Err(anyhow::anyhow!("HyperSync query failed")));
-        
+
         // Create producer via rdkafka ClientConfig
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", "mock://mock")
             .create()
             .unwrap();
-        
+
         // Create test collector with mock
         let collector = TestTransactionCollector {
             client: mock_client,
@@ -536,31 +561,39 @@ mod tests {
             topic: "test-topic".to_string(),
             chain_id: 1,
         };
-        
+
         // Call the method under test
-        let result = collector.collect_historical_transactions(address, from_block, to_block).await;
-        
+        let result = collector
+            .collect_historical_transactions(address, from_block, to_block)
+            .await;
+
         // Verify results
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("HyperSync query failed"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("HyperSync query failed")
+        );
     }
 
     #[tokio::test]
     async fn test_health_check_successful() {
         // Create mock client directly
         let mut mock_client = MockHypersyncClient::new();
-        
+
         // Configure mock expectations for this specific test
-        mock_client.expect_health_check()
+        mock_client
+            .expect_health_check()
             .times(1)
             .returning(|| Ok(12345678));
-        
+
         // Create producer via rdkafka ClientConfig
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", "mock://mock")
             .create()
             .unwrap();
-        
+
         // Create test collector with mock
         let collector = TestTransactionCollector {
             client: mock_client,
@@ -568,10 +601,10 @@ mod tests {
             topic: "test-topic".to_string(),
             chain_id: 1,
         };
-        
+
         // Call the method under test
         let result = collector.health_check().await;
-        
+
         // Verify results
         assert!(result.is_ok());
     }
@@ -580,18 +613,19 @@ mod tests {
     async fn test_health_check_failure() {
         // Create mock client directly
         let mut mock_client = MockHypersyncClient::new();
-        
+
         // Configure mock expectations for this specific test
-        mock_client.expect_health_check()
+        mock_client
+            .expect_health_check()
             .times(1)
             .returning(|| Err(anyhow::anyhow!("HyperSync health check failed")));
-        
+
         // Create producer via rdkafka ClientConfig
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", "mock://mock")
             .create()
             .unwrap();
-        
+
         // Create test collector with mock
         let collector = TestTransactionCollector {
             client: mock_client,
@@ -599,13 +633,18 @@ mod tests {
             topic: "test-topic".to_string(),
             chain_id: 1,
         };
-        
+
         // Call the method under test
         let result = collector.health_check().await;
-        
+
         // Verify results
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("HyperSync health check failed"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("HyperSync health check failed")
+        );
     }
 
     #[test]
@@ -613,21 +652,22 @@ mod tests {
         // Create a test event
         let event = TransactionEvent {
             chain_id: 1,
-            transaction_hash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string(),
+            transaction_hash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                .to_string(),
             block_number: 12345678,
             from_address: "0x1234567890123456789012345678901234567890".to_string(),
             to_address: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd".to_string(),
             value: "1000000000000000000".to_string(), // 1 ETH
-            timestamp: 1609459200, // 2021-01-01
+            timestamp: 1609459200,                    // 2021-01-01
             is_success: true,
         };
-        
+
         // Serialize to JSON
         let json = serde_json::to_string(&event).unwrap();
-        
+
         // Deserialize back
         let deserialized: TransactionEvent = serde_json::from_str(&json).unwrap();
-        
+
         // Verify fields match
         assert_eq!(deserialized.chain_id, event.chain_id);
         assert_eq!(deserialized.transaction_hash, event.transaction_hash);
