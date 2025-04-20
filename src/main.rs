@@ -6,8 +6,9 @@ mod storage;
 
 use crate::processing::service::ProcessingService;
 use anyhow::Result;
-use data_collection::hypersync::client::HypersyncClient;
-use data_collection::hypersync::config::load_config;
+use data_collection::hypersync::load_hypersync_config;
+use data_collection::kafka::load_kafka_config;
+use data_collection::service::DataCollectionService;
 use dotenv::dotenv;
 use log::info;
 
@@ -21,17 +22,17 @@ async fn main() -> Result<()> {
 
     info!("Starting Ethereum Balance API - Phase 1");
 
-    // Create and start the processing service
+    // Load configurations
+    let hypersync_config = load_hypersync_config();
+    let kafka_config = load_kafka_config();
+    info!("Loaded configurations");
+
+    // Create data collection service
+    let data_collection_service = DataCollectionService::new(hypersync_config, kafka_config)?;
+
+    // Create processing service
     let processing_service = ProcessingService::new()?;
     processing_service.start().await?;
-
-    // Load Hypersync configuration
-    let hypersync_config = load_config()?;
-    info!("Loaded Hypersync configuration");
-
-    // Initialize Hypersynct client
-    let client = HypersyncClient::new(hypersync_config)?;
-    info!("Initialized Hypersync client");
 
     Ok(())
 }

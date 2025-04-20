@@ -1,17 +1,15 @@
 // Hypersync client wrapper
 
+use super::config::ClientConfig;
 use anyhow::{Context, Result};
-
 use hypersync_client::Client as BaseClient;
 use hypersync_client::QueryResponse;
-use hypersync_client::format::{Address, FixedSizeData, Hex};
+use hypersync_client::format::FixedSizeData;
 use hypersync_client::net_types::FieldSelection;
 use hypersync_client::net_types::Query;
 use hypersync_client::net_types::TransactionSelection;
 use log::info;
 use std::collections::BTreeSet;
-
-use super::config::ClientConfig;
 
 pub struct HypersyncClient {
     client: BaseClient,
@@ -20,9 +18,11 @@ pub struct HypersyncClient {
 
 impl HypersyncClient {
     pub fn new(config: ClientConfig) -> Result<Self> {
+        // Convert our custom config to the base client config format
         let base_config = config
             .to_base_client_config()
             .context("Failed to create client config")?;
+        // Initialize the underlying HyperSync client with the converted config
         let base_client =
             BaseClient::new(base_config).context("Failed to create HyperSync Client")?;
 
@@ -31,6 +31,7 @@ impl HypersyncClient {
             config,
         })
     }
+
     /// Query transactions sent to a specific address
     pub async fn query_transactions_to_address(
         &self,
@@ -39,14 +40,16 @@ impl HypersyncClient {
         to_block: Option<u64>,
     ) -> Result<QueryResponse> {
         info!(
-            "Querying transactions to address {} from block: {}",
-            address, from_block
+            "Querying transactions TO address {} from block: {} to block: {:?}",
+            address, from_block, to_block
         );
+
         let query = Query {
             from_block,
             to_block,
             transactions: vec![TransactionSelection {
-                to: vec![address.clone()],
+                to: vec![address],
+                status: Some(1),
                 ..Default::default()
             }],
             field_selection: FieldSelection {
@@ -64,6 +67,7 @@ impl HypersyncClient {
             },
             ..Default::default()
         };
+
         self.client
             .get(&query)
             .await
@@ -77,11 +81,16 @@ impl HypersyncClient {
         from_block: u64,
         to_block: Option<u64>,
     ) -> Result<QueryResponse> {
+        info!(
+            "Querying transactions FROM address {} from block: {} to block: {:?}",
+            address, from_block, to_block
+        );
         let query = Query {
             from_block,
             to_block,
             transactions: vec![TransactionSelection {
-                from: vec![address.clone()],
+                from: vec![address],
+                status: Some(1),
                 ..Default::default()
             }],
             field_selection: FieldSelection {
@@ -108,7 +117,7 @@ impl HypersyncClient {
 
     /// Stream latest transactions for real-time monitoring
     pub async fn stream_latest_transactions(&self) {
-        todo!();
+        todo!("Transaction streaming");
     }
     /// Health check method
     pub async fn health_check(&self) -> Result<u64> {
@@ -127,6 +136,7 @@ impl HypersyncClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hypersync_client::format::{Address, Hex};
 
     #[test]
     fn test_create_client_with_default_config() {

@@ -1,6 +1,6 @@
 // Configuration for Hypersync
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use hypersync_client::ClientConfig as BaseClientConfig;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
@@ -15,17 +15,6 @@ pub struct ClientConfig {
     pub retry_backoff_ms: u64,
     pub retry_base_ms: u64,
     pub retry_ceiling_ms: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StreamConfig {
-    pub batch_size: u64,
-    pub max_batch_size: u64,
-    pub min_batch_size: u64,
-    pub concurrency: usize,
-    pub max_num_blocks: usize,
-    pub max_num_transactions: usize,
-    pub max_num_logs: usize,
 }
 
 impl Default for ClientConfig {
@@ -44,8 +33,10 @@ impl Default for ClientConfig {
 
 impl ClientConfig {
     pub fn to_base_client_config(&self) -> Result<BaseClientConfig> {
-        let url = Url::parse(&self.url)?; //TODO remove unwrap()
-        let http_timeout = NonZeroU64::new(self.http_timeout_ms).unwrap(); //TODO remove unwrap()
+        let url = Url::parse(&self.url)
+            .context(format!("Failed to parse Hypersync URL: {}", self.url))?;
+        let http_timeout = NonZeroU64::new(self.http_timeout_ms)
+            .context("HTTP timeout must be greater than zero")?;
         Ok(BaseClientConfig {
             url: Some(url),
             bearer_token: self.bearer_token.clone(),
@@ -58,13 +49,24 @@ impl ClientConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamConfig {
+    pub batch_size: u64,
+    pub max_batch_size: u64,
+    pub min_batch_size: u64,
+    pub concurrency: usize,
+    pub max_num_blocks: usize,
+    pub max_num_transactions: usize,
+    pub max_num_logs: usize,
+}
+
 impl Default for StreamConfig {
     fn default() -> Self {
         Self {
             batch_size: 1000,
             max_batch_size: 5000,
             min_batch_size: 100,
-            concurrency: 4, //todo! consider making equal to the number of available cores
+            concurrency: 4,
             max_num_blocks: 1000,
             max_num_transactions: 10000,
             max_num_logs: 10000,
@@ -72,16 +74,15 @@ impl Default for StreamConfig {
     }
 }
 
-/// Load Hyoersync configuration from environment variables
-pub fn load_config() -> Result<ClientConfig> {
-    // Expand to laod from env file
+/// Load Hypersync configuration from environment variables
+pub fn load_hypersync_config() -> ClientConfig {
     let mut config = ClientConfig::default();
 
     if let Ok(endpoint) = std::env::var("HYPERSYNC_ENDPOINT") {
         config.url = endpoint;
     }
     // Additional environment variable parsing could be added here
-    Ok(config)
+    config
 }
 
 #[cfg(test)]
