@@ -1,15 +1,16 @@
 // Processing Service
 
 use crate::common::types::TransactionEvent;
-use crate::processing::kafka::consumer::TransactionConsumer;
+use crate::data_collection::kafka::KafkaConfig;
+use crate::processing::kafka::consumer::KafkaConsumer;
 use crate::processing::processors::transaction_processor::TransactionProcessor;
 use anyhow::Result;
 use log::info;
 use tokio::sync::mpsc;
 
 pub struct ProcessingService {
-    consumer: TransactionConsumer,
     processor: TransactionProcessor,
+    consumer: KafkaConsumer,
     // You might want to add fields here for things like:
     // - Database connections
     // - Configuration
@@ -17,8 +18,8 @@ pub struct ProcessingService {
 }
 
 impl ProcessingService {
-    pub fn new() -> Result<Self> {
-        let consumer = TransactionConsumer::new("topic")?;
+    pub fn new(kafka_config: KafkaConfig) -> Result<Self> {
+        let consumer = KafkaConsumer::new(kafka_config)?;
         let processor = TransactionProcessor::new()?;
         Ok(Self {
             consumer,
@@ -26,7 +27,7 @@ impl ProcessingService {
         })
     }
     pub async fn start(self) -> Result<()> {
-        info!("Starting processing service.");
+        // info!("Starting processing service.");
 
         //Create channel for transaction events
         let (tx, rx) = mpsc::channel::<TransactionEvent>(1000);

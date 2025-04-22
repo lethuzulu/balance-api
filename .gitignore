@@ -20,3 +20,5 @@ target/
 .env
 balance-api.code-workspace
 info.txt
+.cursor/
+transactions.log

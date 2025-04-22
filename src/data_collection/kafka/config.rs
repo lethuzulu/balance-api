@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KafkaConfig {
     /// List of Kafka bootstrap servers (comma-separated)
     pub brokers: String,

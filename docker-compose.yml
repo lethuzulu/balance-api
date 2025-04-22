@@ -6,7 +6,7 @@ services:
       - "8123:8123"
       - "9000:9000"
     volumes:
-      - ./data/clickhouse:/var/lib/clickhouse
+      - ./docker-data/clickhouse:/var/lib/clickhouse
     environment:
       - CLICKHOUSE_USER=username
       - CLICKHOUSE_PASSWORD=password
@@ -16,7 +16,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - ./data/redis:/data
+      - ./docker-data/redis:/data
 
   zookeeper:
     image: confluentinc/cp-zookeeper:latest

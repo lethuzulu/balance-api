@@ -30,7 +30,9 @@ impl KafkaProducer {
             .set("message.timeout.ms", config.message_timeout_ms.to_string())
             .set("retry.backoff.ms", config.retry_backoff_ms.to_string())
             .set("message.send.max.retries", config.max_retries.to_string())
-            .set("enable.idempotence", config.enable_idempotence.to_string());
+            .set("enable.idempotence", config.enable_idempotence.to_string())
+            .set("compression.type", "snappy")
+            .set("acks", "all");
 
         // Create the producer
         let producer: FutureProducer = client_config
@@ -42,7 +44,7 @@ impl KafkaProducer {
         Ok(Self {
             producer,
             timeout,
-            topic: config.default_topic,
+            topic: config.default_topic.clone(),
         })
     }
 
