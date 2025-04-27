@@ -1,8 +1,7 @@
 // Kafka consumer for transaction events
 use crate::{common::types::TransactionEvent, data_collection::kafka::KafkaConfig};
 use anyhow::{Context, Result};
-use hyper::client;
-use log::{error, info, debug, warn};
+use log::{debug, error, info};
 use rdkafka::{
     ClientConfig, Message,
     consumer::{Consumer, StreamConsumer},
@@ -16,7 +15,7 @@ pub struct KafkaConsumer {
     /// Kafka consumer for message consumption
     consumer: StreamConsumer,
     /// Kakfa topic for transaction events
-    topic: String
+    topic: String,
 }
 
 impl KafkaConsumer {
@@ -27,7 +26,7 @@ impl KafkaConsumer {
         let mut client_config = ClientConfig::new();
         client_config
             .set("bootstrap.servers", &config.brokers)
-            .set("enable.auto.commit", "true")  
+            .set("enable.auto.commit", "true")
             .set("auto.offset.reset", "earliest")
             .set("session.timeout.ms", "6000")
             .set("max.poll.interval.ms", "300000")
@@ -44,7 +43,9 @@ impl KafkaConsumer {
             .set("max.partition.fetch.bytes", "1048576");
 
         // Create the Consumer
-        let consumer: StreamConsumer = client_config.create().context("Failed to create consumer")?;
+        let consumer: StreamConsumer = client_config
+            .create()
+            .context("Failed to create consumer")?;
         info!("Successfully created Kafka consumer");
 
         Ok(Self {
@@ -57,7 +58,7 @@ impl KafkaConsumer {
         info!("Starting Kafka consumer for topic: {}", self.topic);
 
         let consumer = Arc::new(self.consumer);
-        
+
         // Subscribe to the topic
         match consumer.subscribe(&[&self.topic]) {
             Ok(_) => info!("Successfully subscribed to topic: {}", self.topic),
@@ -94,9 +95,9 @@ impl KafkaConsumer {
                                 continue;
                             }
                         };
-                        
+
                         debug!("Successfully deserialized event: {:?}", event);
-                        
+
                         // Send to the channel
                         if let Err(e) = sender.send(event).await {
                             error!("Failed to send transaction event: {}", e);

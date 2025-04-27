@@ -18,6 +18,7 @@ protobuf = "3.7.2"
 # HTTP and API Clients
 reqwest = "0.12.15"
 hyper = "1.6.0"
+actix-web = "4.10.2"
 
 # Error Handling
 anyhow = "1.0.97"
@@ -36,9 +37,9 @@ config = "0.15.11"
 
 # API Frameworks
 async-graphql = { version = "7.0", features = ["chrono", "decimal"] }
+async-graphql-actix-web = "7.0.16"
 tonic = "0.13.0"
 tower = "0.5.2"
-axum = "0.7"
 
 
 # Decimal Handling
@@ -46,7 +47,7 @@ rust_decimal = "1.37.1"
 rust_decimal_macros = "1.37.1"
 
 # Utilities
-chrono = "0.4.40"
+chrono = {version = "0.4.40", features = ["serde"]}
 uuid = { version = "1.6", features = ["v4", "serde"] }
 futures = "0.3.31"
 hex = "0.4.3"

@@ -5,7 +5,6 @@ use crate::data_collection::kafka::KafkaConfig;
 use crate::processing::kafka::consumer::KafkaConsumer;
 use crate::processing::processors::transaction_processor::TransactionProcessor;
 use anyhow::Result;
-use log::info;
 use tokio::sync::mpsc;
 
 pub struct ProcessingService {
