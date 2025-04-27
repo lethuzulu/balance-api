@@ -10,3 +10,12 @@ pub struct BalanceChange {
     pub timestamp: DateTime<Utc>,
     pub chain_id: u64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AddressBalance {
+    pub address: String,
+    pub chain_id: u64,
+    pub balance: String,
+    pub block_number: u64,
+    pub timestamp: DateTime<Utc>,
+}

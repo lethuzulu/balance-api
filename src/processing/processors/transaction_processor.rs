@@ -6,14 +6,16 @@ use crate::{
 };
 use anyhow::{Context, Result, anyhow};
 use chrono::{DateTime, Utc};
+use log::info;
 use std::collections::HashMap;
 use tokio::sync::mpsc::Receiver;
-use log::info;
-
 
 pub struct TransactionProcessor {
     //config: ProcessorConfig,  //TODO: add a config
     db_client: ClickhouseClient,
+    // Cache to store current balances for faster access durinng processing
+    balances: HashMap<(String, u64), String>,
+    // Track the latest processed block per chain
     latest_blocks: HashMap<u64, u64>,
 }
 
@@ -22,26 +24,38 @@ impl TransactionProcessor {
         let db_client = ClickhouseClient::new();
         Ok(Self {
             db_client,
+            balances: HashMap::new(),
             latest_blocks: HashMap::new(),
         })
     }
 
     pub async fn start(self, mut receiver: Receiver<TransactionEvent>) {
         info!(" Starting transaction processor");
-        
+
         // Spawn a task to process received messages
         tokio::spawn(async move {
             while let Some(event) = receiver.recv().await {
                 if let Err(e) = self.process_transaction(&event).await {
-                    log::error!("Error process transaction {}: {}", event.transaction_hash, e);
+                    log::error!(
+                        "Error process transaction {}: {}",
+                        event.transaction_hash,
+                        e
+                    );
                 }
             }
         });
     }
 
-    pub async fn process_transaction(&self, event: &TransactionEvent) -> Result<()> {
-        
+    pub async fn process_transaction(
+        &self,
+        event: &TransactionEvent,
+    ) -> Result<Vec<BalanceChange>> {
         let mut balance_changes = Vec::new();
+
+        //Skip failed transactions
+        if !event.is_success {
+            return Ok(balance_changes);
+        }
 
         // Convert event to transaction record
         let transaction = TransactionRecord::from(event.clone());
@@ -53,6 +67,7 @@ impl TransactionProcessor {
             .context("Failed to insert transaction record")?;
 
         let timestamp = DateTime::from_timestamp(event.timestamp as i64, 0).unwrap_or_default();
+
         // For sender: this is a negative balance change (i.e. outgoing)
         if !event.value.is_empty() && event.value != "0" && event.value != "0x0" {
             let value = if event.value.starts_with("0x") {
@@ -114,13 +129,27 @@ impl TransactionProcessor {
                 .await?;
 
             // // Update historical balances - Purpose: Fast lookup for balance at specific blocks
-            self.update_historical_balance(&event.from_address, event.block_number, event.chain_id, timestamp).await?;
-            self.update_historical_balance(&event.to_address, event.block_number, event.chain_id, timestamp).await?;
+            self.update_historical_balance(
+                &event.from_address,
+                event.block_number,
+                event.chain_id,
+                timestamp,
+            )
+            .await?;
+            self.update_historical_balance(
+                &event.to_address,
+                event.block_number,
+                event.chain_id,
+                timestamp,
+            )
+            .await?;
         }
+
         // Update latest processed block for this chain
         self.update_latest_block(event.chain_id, event.block_number)
             .await?;
-        Ok(())
+
+        Ok(balance_changes)
     }
 
     async fn update_historical_balance(
@@ -131,19 +160,24 @@ impl TransactionProcessor {
         timestamp: DateTime<Utc>,
     ) -> Result<()> {
         // Get current_balance
-        let balance = self.db_client.get_current_balance(address, block_number).await?;
+        let balance = self
+            .db_client
+            .get_current_balance(address, block_number)
+            .await?;
 
         // Create historical balance entry
-        let historical_balance = HistoricalBalance{
+        let historical_balance = HistoricalBalance {
             address: address.to_string(),
             block_number,
             balance: balance.balance,
             timestamp,
-            chain_id
+            chain_id,
         };
 
         // Store historical balance
-        self.db_client.insert_historical_balance(&historical_balance).await?;
+        self.db_client
+            .insert_historical_balance(&historical_balance)
+            .await?;
 
         Ok(())
     }

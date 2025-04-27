@@ -20,7 +20,6 @@ impl ClickhouseClient {
         ClickhouseClient { client }
     }
 
-
     pub async fn insert_transaction(&self, balance: &TransactionRecord) -> Result<()> {
         let q = "
         INSERT INTO transaction_records (block_number, transaction_hash, from_address, to_address, value, timestamp, chain_id, is_sucess)
@@ -63,24 +62,29 @@ impl ClickhouseClient {
     }
 
     pub async fn insert_historical_balance(&self, balance: &HistoricalBalance) -> Result<()> {
-        let q = 
-        "
+        let q = "
         INSERT INTO historical_balances (address, block_number, balance, timestamp, chain_id)
         VALUES (?, ?, ?, ?, ?)
         ";
-        let _result = self.client.query(q)
-        .bind(&balance.address)
-        .bind(balance.block_number)
-        .bind(&balance.balance)
-        .bind(balance.timestamp)
-        .bind(balance.chain_id)
-        .execute()
-        .await?;
+        let _result = self
+            .client
+            .query(q)
+            .bind(&balance.address)
+            .bind(balance.block_number)
+            .bind(&balance.balance)
+            .bind(balance.timestamp)
+            .bind(balance.chain_id)
+            .execute()
+            .await?;
 
         Ok(())
     }
 
-    pub async fn get_current_balance(&self, address: &str, chain_id: u64) -> Result<CurrentBalance> {
+    pub async fn get_current_balance(
+        &self,
+        address: &str,
+        chain_id: u64,
+    ) -> Result<CurrentBalance> {
         let q = "
             SELECT address, chain_id, balance, last_block_number, last_update 
             FROM current_balances
@@ -95,9 +99,7 @@ impl ClickhouseClient {
             .await;
 
         match result {
-            Ok(Some(balance)) => {
-                Ok(balance)
-            },
+            Ok(Some(balance)) => Ok(balance),
             Ok(None) => {
                 // Return a default balance of zero if no record exists
                 Ok(CurrentBalance {
@@ -108,19 +110,16 @@ impl ClickhouseClient {
                     last_update: Utc::now(),
                 })
             }
-            Err(e) => {
-                Err(anyhow!("Failed to get current balance: {}", e))
-            }
+            Err(e) => Err(anyhow!("Failed to get current balance: {}", e)),
         }
     }
-
 
     pub async fn get_balance_at_block(
         &self,
         address: &str,
         block_number: u64,
         chain_id: u64,
-    ) -> Result<()> {
+    ) -> Result<String> {
         // Query for the test balance before or at the specifie block
         let query = "
         SELECT balance 
@@ -129,16 +128,19 @@ impl ClickhouseClient {
         ORDER BY block_number DESC
         LIMIT 1
         ";
-        let _result = self
+        let result = self
             .client
             .query(query)
             .bind(address)
             .bind(block_number)
             .bind(chain_id)
-            .fetch_optional::<CurrentBalance>()
+            .fetch_optional::<HistoricalBalance>()
             .await;
-        Ok(())
+
+        match result {
+            Ok(Some(balance)) => Ok(balance.balance),
+            Ok(None) => Ok("0".into()),
+            Err(e) => Err(anyhow!("Failed to get balance: {}", e)),
+        }
     }
-
-
 }
