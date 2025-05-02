@@ -3,12 +3,13 @@ use actix_web::{App, HttpResponse, HttpServer, guard, web};
 use anyhow::{Context, Result};
 use async_graphql::http::{GraphQLPlaygroundConfig, playground_source};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
+use std::sync::Arc;
 
-use crate::query::service::QueryService;
+use crate::{data_collection::collection_manager::{self, CollectionManager}, query::service::QueryService};
 
 use super::schema::{AppSchema, create_schema};
 
-pub async fn start_graphql_server() -> Result<()> {
+pub async fn start_graphql_server(collection_manager: Arc<CollectionManager>) -> Result<()> {
     // Create QueryService
     let service = QueryService::new().context("Failed to create query service")?;
     let schema = create_schema(service);
@@ -17,6 +18,7 @@ pub async fn start_graphql_server() -> Result<()> {
         // TODO: configure CORS
         App::new()
             .app_data(web::Data::new(schema.clone()))
+            .app_data(web::Data::from(collection_manager.clone()))
             .service(
                 web::resource("/graphql")
                     .guard(guard::Post())

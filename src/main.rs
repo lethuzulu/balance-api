@@ -4,8 +4,11 @@ mod processing;
 mod query;
 mod storage;
 
+
+use std::sync::Arc;
 use crate::processing::service::ProcessingService;
 use anyhow::Result;
+use data_collection::collection_manager::CollectionManager;
 use data_collection::service::DataCollectionService;
 use data_collection::{hypersync::load_hypersync_config, kafka::load_kafka_config};
 use dotenv::dotenv;
@@ -30,14 +33,9 @@ async fn main() -> Result<()> {
     info!("Loaded configurations");
 
     // Create data collection service
-    let data_collection_service =
-        DataCollectionService::new(hypersync_config, kafka_config.clone())?;
+    let data_collection_service = DataCollectionService::new(hypersync_config, kafka_config.clone())?;
+    let collection_manager = Arc::new(CollectionManager::new(Arc::new(data_collection_service)));
 
-    // Start data collection (example for WETH)
-    tokio::spawn(async move {
-        // let weth_address = Address::decode_hex("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2").unwrap();
-        // data_collection_service.start_stream(weth_address).await.unwrap();
-    });
 
     // Create and start processing service
     let processing_service = ProcessingService::new(kafka_config)?;
@@ -47,7 +45,7 @@ async fn main() -> Result<()> {
 
     // Start GraphQL server
     let api_task = tokio::spawn(async move {
-        if let Err(e) = query::graphql::server::start_graphql_server().await {
+        if let Err(e) = query::graphql::server::start_graphql_server(collection_manager).await {
             error!("Failed to start GraphQL server: {}", e);
         }
     });
