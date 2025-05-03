@@ -7,8 +7,10 @@ use super::{
 use crate::common::types::TransactionEvent;
 use anyhow::{Context, Result};
 use hypersync_client::format::{FixedSizeData, Hex};
+use hypersync_client::net_types::{FieldSelection, Query, TraceSelection};
 use hypersync_client::{QueryResponse, format::TransactionStatus};
 use log::{error, info};
+use std::collections::BTreeSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct DataCollectionService {

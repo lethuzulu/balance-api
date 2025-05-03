@@ -7,7 +7,7 @@ use hypersync_client::QueryResponse;
 use hypersync_client::format::FixedSizeData;
 use hypersync_client::net_types::FieldSelection;
 use hypersync_client::net_types::Query;
-use hypersync_client::net_types::TransactionSelection;
+use hypersync_client::net_types::{TraceSelection, TransactionSelection};
 use log::info;
 use std::collections::BTreeSet;
 
@@ -130,6 +130,37 @@ impl HypersyncClient {
     /// Handle pagination from Hypersync responses
     fn handle_pagination() -> Result<u64> {
         todo!("Implement pagination");
+    }
+
+    // TODO: REVIEW implementation
+    pub async fn get_deployment_block(&self, address: FixedSizeData<20>) -> u64 {
+        let query = Query {
+            from_block: 0,
+            traces: vec![TraceSelection {
+                address: vec![address],
+                kind: vec!["create".to_string()],
+                ..Default::default()
+            }],
+            field_selection: FieldSelection {
+                trace: {
+                    let mut fields = BTreeSet::new();
+                    fields.insert("block_number".to_string());
+                    fields
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let response = self.client.get(&query).await.unwrap();
+
+        // Get the earliest block number from creation traces
+        // if response.data.traces.is_empty() {
+        //     // return Err(anyhow::anyhow!(
+        //     //     "No deployment block found - address might not be a contract"
+        //     // ));
+        // }
+        let deployment_block = response.data.traces[0][0].block_number.unwrap(); //TODO remove unwrap
+        deployment_block
     }
 }
 
